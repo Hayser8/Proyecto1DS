@@ -1,36 +1,57 @@
 import os
+import csv
 import pandas as pd
 
-INPUT_DIR = 'Datos'
+INPUT_DIR = 'datos'
 OUTPUT_DIR = 'datos_csv'
-
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
 for filename in os.listdir(INPUT_DIR):
     if not filename.lower().endswith('.xls'):
         continue
 
-    input_path = os.path.join(INPUT_DIR, filename)
+    path_in = os.path.join(INPUT_DIR, filename)
     base, _ = os.path.splitext(filename)
+    path_out = os.path.join(OUTPUT_DIR, f"{base}.csv")
 
+    # 1) Lee todas las tablas del "HTML" en el .xls
     try:
-        # Lee todas las tablas; header=0 usa la primera fila como nombres de columna
-        tables = pd.read_html(input_path, header=0, encoding='latin1')
+        tables = pd.read_html(path_in, header=0, encoding='latin1')
     except Exception as e:
         print(f"[ERROR] {filename}: {e}")
         continue
-
     if not tables:
         print(f"[SKIP] {filename}: no se encontraron tablas")
         continue
 
-    # Nos quedamos con la última tabla
-    df = tables[-1]
+    # 2) Selecciona sólo la última tabla
+    df = tables[-1].dropna(how='all').reset_index(drop=True)
 
-    # Elimina filas completamente vacías (p. ej. la fila de &nbsp; al final)
-    df = df.dropna(how='all').reset_index(drop=True)
+    # 3) Limpia cada celda de texto:
+    #    - Sustituye NBSP por espacio.
+    #    - Divide por cualquier whitespace (incluye \n,\r,\t, etc.) y vuelve a unir con un solo espacio.
+    for col in df.select_dtypes(include=['object']):
+        df[col] = (
+            df[col]
+            .fillna('')
+            .astype(str)
+            .str.replace('\xa0', ' ', regex=False)       # NBSP → espacio
+            .apply(lambda x: ' '.join(x.split()))        # cualquier whitespace → un espacio
+        )
 
-    # Guarda a CSV
-    output_path = os.path.join(OUTPUT_DIR, f"{base}.csv")
-    df.to_csv(output_path, index=False)
-    print(f"Guardado: {base}.csv")
+    # 4) Escribe el CSV:
+    #    - Línea sep=, para forzar coma como delimitador en Excel.
+    #    - quoting=QUOTE_ALL para envolver **todos** los campos en comillas dobles.
+    #    - utf-8-sig para que Excel reconozca UTF-8 correctamente.
+    with open(path_out, 'w', encoding='utf-8-sig', newline='') as f:
+        f.write('sep=,\n')
+        df.to_csv(
+            f,
+            index=False,
+            sep=',',
+            quoting=csv.QUOTE_ALL,
+            quotechar='"',
+            doublequote=True
+        )
+
+    print(f"✔ {base}.csv generado con coma como separador y campos entre comillas.")
