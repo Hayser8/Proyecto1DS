@@ -1,0 +1,2 @@
+﻿timestamp,fase,regla_id,regla_desc,id_estab,municipio,departamento,codigo,direccion,area_old,area_new
+2025-08-14 16:29:43,Fase 6 - Puntualidad y Reporte,REPORTE_DQ,Generación de dq_quality_report.md y export final CSV,,,,,,,
